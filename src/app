@@ -1,0 +1,254 @@
+#!/bin/bash
+
+## @author Michael Labieniec <ml@elastrix.io>
+## @brief Elastrix cli tools
+## @copyright GPLv3
+## @version 1.0
+
+## Check for root
+if [[ $EUID -ne 0 ]]; then
+   echo
+   echo -e "  \e[31m\e[1m[!] Elastrix cli must be run with sudo i.e. sudo elastrix\e[0m" 1>&2
+   echo
+   exit 1
+fi
+
+## source the config
+if [ -f "$HOME/.elx" ]; then
+	. "$HOME/.elx"
+fi
+
+##
+# main program init and system variables
+##
+
+## Set the script path
+ELX_SCRIPT_PATH="`dirname \"$0\"`"
+ELX_SCRIPT_PATH="`( cd \"$ELX_SCRIPT_PATH\" && pwd )`"
+if [ -z "$ELX_SCRIPT_PATH" ]
+then
+  echo "  \e[31m\e[1m[!] Permission denied, are you running with sudo?\e[0m"
+  exit 1
+fi
+
+## NGINX Settings
+NGINX_CONF_FILE="$(awk -F= -v RS=' ' '/conf-path/ {print $2}' <<< $(nginx -V 2>&1))"
+NGINX_CONF_DIR="${NGINX_CONF_FILE%/*}"
+NGINX_SITES_AVAILABLE="$NGINX_CONF_DIR/sites-available"
+NGINX_SITES_ENABLED="$NGINX_CONF_DIR/sites-enabled"
+SELECTED_SITE="$2"
+
+##
+# private variables
+##
+
+## Check what platform we are on and set the script name
+platform="`uname -s`/`uname -m`"
+me=$(basename "$0")
+
+## describe the supported apps
+apps[0]='Ghost on NGINX'
+apps[1]='WordPress on NGINX'
+apps[2]='WordPress on Apache'
+apps[3]='Elastrix Media Server'
+apps[4]='LAMP with Webmin'
+apps[5]='Parse Server'
+apps[6]='Quit'
+
+## Displays a warning if ec2-metadata program is not found
+warnEc2MetadataNotFound() {
+	warn "ec2-metadata not found, are you running on EC2?"
+	info "Elastrix supports EC2 instances on Debian based Linux platforms."
+}
+
+warn() {
+	echo -e "  \e[31m\e[1m[!] $1\e[0m"
+}
+
+info() {
+	echo -e "  \e[1m[i] $1\e[0m" 
+}
+
+prompt() {
+	read -p "  \e[1m[?] $1 : \e[0m" $2
+}
+
+## initialize
+init() {
+	user=$(whoami)
+	## check if we have access to ec2-metadata
+	if hash ec2-metadata 2>/dev/null; then
+		url=$(ec2metadata --public-hostname)
+		ip=$(ec2metadata --public-ipv4)
+	else
+		## determine public ip and hostname
+		if hash dig 2>/dev/null; then
+			
+			echo -e "  [i] Detecting DNS..."
+			ip=$( curl http://ip4.me 2>/dev/null | sed -e 's#<[^>]*>##g' | grep '^[0-9]' )
+			domain=$( dig +short -x $ip)
+			
+			if [[ -n $domain ]]; then
+				url=${domain::-1}
+			elif [[ user="azureuser" ]]; then
+				azurehost=$(hostname)
+				url="${azurehost}.cloudapp.net"
+			else
+				warn "Unable to detect your external host name."
+				url="domain.com"
+			fi	
+		else
+			warn "Unable to detect your external host settings."
+			ip="0.0.0.0"
+			url=$(hostname)
+		fi
+	fi
+	info "Detected Public Host:          \e[4m$url"
+	info "Detected Public IP Address:    \e[4m$ip"
+}
+
+##
+# main functions and utilities
+##
+
+## Display Elastrix header
+header() {
+	echo -e '     __ _           _        _        '
+	echo -e '    /__\ | __ _ ___| |_ _ __(_)_  __  '
+	echo -e '   /_\ | |/ _` / __| __| `__| \ \/ /  '
+	echo -e '  //__ | | (_| \__ \ |_| |  | |>  <   '
+	echo -e '  \__/ |_|\__,_|___/\__|_|  |_/_/\_\ '"v${ELX_VERSION}"
+	echo 
+	echo
+	#if [[ $platform ]]; then
+	#	echo -e "   ${platform} detected"
+	#fi
+	#echo
+}
+
+## Determine which setup to run, otherwise present menu
+setup() {
+	if [ -e "/var/www/html/wordpress" ]; then		
+		if hash nginx 2>/dev/null; then
+			setupWordpressNginx
+		elif [ -f "/etc/init.d/apache2" ]; then
+			setupWordpressApache
+		else
+			menuSetup
+		fi
+	elif [ -f "/etc/init/ghost.conf" ]; then
+		if hash nginx 2>/dev/null; then
+			setupGhostNginx
+		else
+			menuSetup
+		fi
+	elif [ -f "/etc/kurento/modules/kurento/WebRtcEndpoint.conf.ini" ]; then
+		setupElastrixMediaServer
+	elif [ -f "/etc/init.d/apache2" ] && [ -e "/var/www/html" ]; then
+		setupLAMP
+	elif [ -f "/etc/init/parse.conf" ]; then
+		setupParse
+	else
+		menuSetup
+	fi
+}
+
+## Try and execute a program, warn and quit if not found
+execute() {
+	if hash $1 2>/dev/null; then
+		exec $1
+	else
+		warnExecNotFound $1
+		exit 1
+	fi
+}
+
+
+
+## ask whic setup program to run
+menuSetup() {
+	warn "Your app could not be detected. "
+	PS3='Please choose your app: '
+	select opt in "${apps[@]}"
+	do
+	    case $opt in
+	        "Ghost on NGINX")
+	            setupGhostNginx
+	            ;;
+	        "WordPress on Apache")
+	            setupWordpressApache
+	            ;;
+	        "WordPress on NGINX")
+	            setupWordpressNginx
+	            ;;
+	        "Elastrix Media Server")
+				setupElastrixMediaServer
+				;;
+			"LAMP with Webmin")
+				setupLAMP
+				;;
+	        "Quit")
+				warnElastrixSetupNotFound
+	            break
+	            ;;
+	        *) echo invalid option;;
+	    esac
+	done
+}
+
+## Check what platform we are running on
+checkPlatform() {
+	case $platform in
+	  (Darwin/i386|Darwin/x86_64|Linux/i386|Linux/x86_64)
+	    true
+	    ;;
+	  (Linux/i[456]86)
+	    platform=Linux/i386
+	    ;;
+	  (Linux/armv[67]l)
+	    platform=Linux/arm
+	    ;;
+	  (*)
+	    warn "Unsupported platform: $platform."
+	    exit 1
+	    ;;
+	esac
+}
+
+## Display a warning when an elastrix setup program is not found
+warnElastrixSetupNotFound() {
+	warn "Elastrix setup not found."
+	info "Please try re-installing Elastrix with the following commands: "
+	echo 
+	echo -e "    \e[0mcurl -L http://elastrix.io/start | sudo bash"
+	echo -e "    \e[0msudo apt-get install elastrix"
+	echo
+}
+
+## display a warning when an executable is not found
+warnExecNotFound() {
+	warn "$1 not found."
+	info "Please try re-installing Elastrix."
+	echo 
+	echo -e "    \e[0mcurl -L http://elastrix.io/start | sudo bash"
+	echo -e "    \e[0msudo apt-get install elastrix"
+	echo
+}
+
+if [[ $ELX_DEV ]]
+then
+	libs=$(ls $ELX_SCRIPT_PATH/lib)
+	for l in $libs; do
+		. $ELX_SCRIPT_PATH/lib/$l
+	done
+
+	modules=$(ls $ELX_SCRIPT_PATH/modules)
+	for f in $modules; do
+		. $ELX_SCRIPT_PATH/modules/$f
+	done
+	. $ELX_SCRIPT_PATH/main.sh
+fi
+
+##
+# modules
+##

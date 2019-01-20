@@ -1,0 +1,4 @@
+node_modules
+tmp
+aws.json
+gpgkey.asc

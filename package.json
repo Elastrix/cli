@@ -1,0 +1,25 @@
+{
+  "name": "elastrix-cli",
+  "version": "1.3.4",
+  "description": "Elastrix command line tools",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "grunt build",
+    "upload": "grunt upload"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@git.seedup.io:mdm/elastrix-tools.git"
+  },
+  "author": "Michael Labieniec <michaellabieniec@gmail.com>",
+  "license": "GNU LGPLv3",
+  "devDependencies": {
+    "grunt": "^0.4.5",
+    "grunt-cli": "^1.3.2",
+    "grunt-contrib-concat": "~0.5.1",
+    "grunt-contrib-copy": "~0.8.1",
+    "grunt-debian-package": "^0.1.11",
+    "grunt-shell": "^1.1.2"
+  }
+}
