@@ -1,5 +1,5 @@
 # Elastrix CLI
-The Elastrix CLI is a command line interface for managing cloud application webserver configurations. It works with Elastrix based machine images launched on AWS. The pre-configured machine images are available [here](https://elastrix.io/apps) and can be launched via the [AWS Marketplace](https://aws.amazon.com/marketplace/seller-profile?id=29220b8c-675b-4421-a322-b24525fb7858&ref=dtl_B01G28SOHY).
+The Elastrix CLI is a command line interface, written completely in Bash script, for managing cloud application webserver configurations. It works with Elastrix based machine images launched on AWS. The pre-configured machine images are available [here](https://elastrix.io/apps) and can be launched via the [AWS Marketplace](https://aws.amazon.com/marketplace/seller-profile?id=29220b8c-675b-4421-a322-b24525fb7858&ref=dtl_B01G28SOHY).
 
 The CLI is distributed via a Debian repository hosted on S3. The included Gruntfile references the repository but you will not have permissions to publish to it without the GPG key. If you would like to contribute, please see the contribution guidelines.
 
