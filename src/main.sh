@@ -23,6 +23,7 @@ argsparse_use_option parse "Configure Parse Server" short:p
 argsparse_use_option monit "Configure Monit" short:n
 argsparse_use_option version "View Elastrix Version" short:v
 argsparse_use_option certs "Generate SSL certificates" short:c
+argsparse_use_option nosqlclient "Start/Stop NoSQLClient" short:l value
 
 
 # You can define your own usage function
@@ -100,6 +101,13 @@ usage() {
 		echo
 		echo "  -n |  --monit web 	Update Monit Web Server"
 		echo "        --monit kill 	Disable Monit Web Server"
+	fi
+
+	## HumongousDB functions
+	if [ -e "/etc/mongodb.conf" ]; then
+		echo
+		echo "  -l |  --nosqlclient start	Start NoSQLClient application"
+		echo "        --nosqlclient stop	Stop NoSQLClient application"
 	fi
 
 	## SSL functions
@@ -188,6 +196,16 @@ elif argsparse_is_option_set "monit"
 			;;
 		kill)
 			monitDisableWebServer
+			;;
+		esac
+elif argsparse_is_option_set "nosqlclient"
+	then
+	case "$2" in
+		start)
+			nosqlclientStart
+			;;
+		stop)
+			nosqlclientStop
 			;;
 		esac
 elif argsparse_is_option_set "version"
